@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XboxDVR - Visualizador de Clips</title>
+    <meta name="description" content="Visualiza partidas y clips guardados de Xbox de manera elegante.">
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="background-mesh"></div>
+    <div class="app-container">
+        <header>
+            <div class="logo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                    class="xbox-icon">
+                    <circle cx="12" cy="12" r="10"></circle>
+                    <path d="M12 2C8 6 4 10 4 10"></path>
+                    <path d="M12 2c4 4 8 8 8 8"></path>
+                    <path d="M12 22s-2-4-2-8"></path>
+                    <path d="M12 22s2-4 2-8"></path>
+                </svg>
+                <span>XboxDVR Hub</span>
+            </div>
+            <nav>
+                <div class="user-status" id="api-status-container">
+                    <span id="connection-status" class="status-badge simulation">Modo: Simulación</span>
+                    <button id="settings-btn" title="Configurar API Key">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path
+                                d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                            </path>
+                        </svg>
+                    </button>
+                </div>
+            </nav>
+        </header>
+
+        <!-- API Key Modal -->
+
+        <div id="settings-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>Configuración de API</h2>
+                    <button id="close-modal-btn" class="close-btn">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <p>Para ver <strong>datos reales</strong>, necesitas una API Key gratuita de OpenXBL.</p>
+                    <ol>
+                        <li>Ve a <a href="https://xbl.io/profile" target="_blank">xbl.io/profile</a> e inicia sesión con
+                            tu cuenta de Microsoft/Xbox.</li>
+                        <li>Copia tu API Key desde el panel.</li>
+                        <li>Pégala aquí abajo.</li>
+                        <li class="warning-text">Nota: Tus clips deben ser públicos en la configuración de privacidad de
+                            Xbox.</li>
+                    </ol>
+                    <div class="input-group">
+                        <label for="api-key-input">OpenXBL API Key</label>
+                        <input type="text" id="api-key-input" placeholder="Pegar clave aquí..." autocomplete="off">
+                    </div>
+                    <button id="save-api-key-btn" class="primary-btn">Guardar y Conectar</button>
+                    <button id="clear-api-key-btn" class="secondary-btn">Borrar y usar Simulación</button>
+
+                    <hr style="border: 0; border-top: 1px solid var(--glass-border); margin: 1.5rem 0;">
+
+                    <h3>Herramienta de Diagnóstico (Console)</h3>
+                    <p style="font-size: 0.8rem; margin-bottom: 0.5rem;">Prueba endpoints manualmente (ej:
+                        <code>account</code> o <code>dvr/gameclips</code>) para verificar tu conexión.
+                    </p>
+                    <div class="input-group" style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <input type="text" id="debug-endpoint" placeholder="endpoint (ej: account)" value="account"
+                            style="margin-bottom: 0;">
+                        <button id="debug-test-btn" class="primary-btn"
+                            style="width: auto; margin-bottom: 0;">Test</button>
+                    </div>
+                    <pre id="debug-output"
+                        style="background: rgba(0,0,0,0.5); padding: 0.5rem; border-radius: 4px; font-size: 0.7rem; color: #0f0; max-height: 150px; overflow-y: auto; white-space: pre-wrap; border: 1px solid var(--glass-border);">Esperando prueba...</pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Player Modal -->
+        <div id="video-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-content video-modal-content">
+                <div class="modal-header">
+                    <h2 id="video-modal-title">Título del Clip</h2>
+                    <button id="close-video-btn" class="close-btn">&times;</button>
+                </div>
+                <div class="video-container">
+                    <video id="main-video-player" controls autoplay>
+                        <source src="" type="video/mp4">
+                        Tu navegador no soporta el elemento de video.
+                    </video>
+                    <img id="main-screenshot-viewer" src="" alt="Captura"
+                        style="display: none; width: 100%; border-radius: 8px;">
+                </div>
+                <div class="modal-footer"
+                    style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                    <div id="editor-controls"
+                        style="display: none; flex: 1; min-width: 300px; background: #222; padding: 15px; border-radius: 8px;">
+                        <h4 style="margin-bottom: 0.8rem; color: #fff; font-size: 1rem;">Editar Clip</h4>
+
+                        <div class="time-display">
+                            <span>Inicio: <span id="time-start-display">0.0s</span></span>
+                            <span style="opacity: 0.5;">Duración: <span id="time-duration-display">0.0s</span></span>
+                            <span>Fin: <span id="time-end-display">0.0s</span></span>
+                        </div>
+
+                        <div id="timeline-container" class="timeline-container">
+                            <div id="timeline-track" class="timeline-track">
+                                <div id="timeline-fill" class="timeline-fill"></div>
+                                <div id="handle-start" class="timeline-handle" style="left: 0%;"></div>
+                                <div id="handle-end" class="timeline-handle" style="left: 100%;"></div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                            <button id="preview-trim-btn" class="secondary-btn"
+                                style="padding: 6px 15px; font-size: 0.85rem; height: auto;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                    fill="currentColor" stroke="none" style="margin-right: 5px;">
+                                    <polygon points="5 3 19 12 5 21 5 3"></polygon>
+                                </svg>
+                                Vista Previa
+                            </button>
+                            <button id="export-trim-btn" class="primary-btn"
+                                style="padding: 6px 15px; font-size: 0.85rem; height: auto; background: #e11d48;">Exportar
+                                Clip</button>
+                        </div>
+                        <span id="export-status"
+                            style="font-size: 0.8rem; color: #aaa; margin-top:0.5rem; display:block;"></span>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; margin-left: auto;">
+                        <button id="toggle-editor-btn" class="secondary-btn"
+                            style="display: inline-flex; width: auto; align-items: center; gap: 0.5rem; text-decoration: none; margin: 0;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Editar
+                        </button>
+                        <a id="download-link" href="#" target="_blank" class="primary-btn"
+                            style="display: inline-flex; width: auto; align-items: center; gap: 0.5rem; text-decoration: none; margin: 0;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                <polyline points="7 10 12 15 17 10"></polyline>
+                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                            </svg>
+                            Descargar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <main>
+            <section class="search-section">
+                <h1>Descubre tus momentos épicos</h1>
+                <p class="subtitle">Busca cualquier Gamertag para ver sus clips y capturas públicas.</p>
+
+                <div class="search-bar-container">
+                    <input type="text" id="gamertag-input" placeholder="Ingresa un Gamertag (ej. mnk-ibra)"
+                        autocomplete="off">
+                    <button id="search-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="11" cy="11" r="8"></circle>
+                            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                        </svg>
+                        Buscar
+                    </button>
+                </div>
+            </section>
+
+            <section class="results-section" id="results-section" style="display: none;">
+                <div class="user-profile-header">
+                    <div class="avatar-placeholder" id="user-avatar">?</div>
+                    <div class="user-info">
+                        <h2 id="display-gamertag">Gamertag</h2>
+                        <span class="user-stats">12 Clips • 5 Capturas</span>
+                    </div>
+                </div>
+
+                <div class="media-filters">
+                    <button class="filter-btn active" data-type="all">Todo</button>
+                    <button class="filter-btn" data-type="clip">Clips</button>
+                    <button class="filter-btn" data-type="screenshot">Capturas</button>
+                </div>
+
+                <div class="grid-container" id="media-grid">
+                    <!-- Cards will be injected here via JS -->
+                </div>
+            </section>
+
+            <div class="loader" id="loader">
+                <div class="spinner"></div>
+            </div>
+        </main>
+
+        <footer>
+            <p>Diseñado con estilo Premium Glassmorphism. Datos simulados para demostración.</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
