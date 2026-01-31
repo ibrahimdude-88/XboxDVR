@@ -214,8 +214,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         } catch (error) {
             loader.style.display = 'none';
-            alert('Error al buscar: ' + error.message);
             console.error(error);
+
+            if (error.message.includes('Failed to fetch')) {
+                alert('Error de Conexión (CORS):\n1. Asegúrate de haber guardado tu API Key en ESTA página web (Configuración > Guardar).\n2. Desactiva tu AdBlocker (puede estar bloqueando el proxy).\n3. Verifica tu conexión a internet.');
+            } else {
+                alert('Error al buscar: ' + error.message);
+            }
         }
     }
 
