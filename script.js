@@ -460,6 +460,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Data Fetching Implementations ---
 
+    // --- Data Fetching Implementations ---
+
+    // Helper: Try multiple proxies to bypass blocks
+    async function fetchWithFallback(targetUrl, apiKey) {
+        const proxies = [
+            // Proxy 1: corsproxy.io (Standard)
+            (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+            // Proxy 2: CodeTabs (Backup)
+            (url) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+            // Proxy 3: AllOrigins (Secondary Backup - might not support custom headers well, but worth a try)
+            (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`
+        ];
+
+        let lastError = null;
+
+        for (const formatProxy of proxies) {
+            try {
+                const finalUrl = formatProxy(targetUrl);
+                console.log(`Intentando conectar vía: ${finalUrl}`); // Debug
+
+                const response = await fetch(finalUrl, {
+                    headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
+                    referrerPolicy: 'no-referrer'
+                });
+
+                // If 401 (Unauthorized), it's not a proxy error, it's an API Key error. Stop trying.
+                if (response.status === 401) {
+                    throw new Error('API Key inválida o expirada (401). Verifica tu clave.');
+                }
+
+                // If success or other acceptable status, return
+                if (response.ok) return response;
+
+                // If 404, valid response, just not found. return.
+                if (response.status === 404) return response;
+
+                console.warn(`Proxy falló (${response.status}). Probando siguiente...`);
+                lastError = new Error(`Status ${response.status}`);
+            } catch (e) {
+                console.warn(`Error de red con proxy: ${e.message}`);
+                lastError = e;
+            }
+        }
+        throw lastError || new Error('Fallaron todos los proxies.');
+    }
+
     async function fetchRealXboxData(gamertag) {
         let logs = []; // Debug logs
 
@@ -468,33 +514,28 @@ document.addEventListener('DOMContentLoaded', () => {
             logs.push(msg);
         };
 
-        log(`Iniciando búsqueda para: ${gamertag}`);
-
-        const CORS_PROXY = 'https://corsproxy.io/?'; // Use this consistently
+        log(`Iniciando búsqueda robusta para: ${gamertag}`);
 
         // 1. Get XUID
-        // Try the User's suggested endpoint: api/v2/search/{gt}
-        // This endpoint seems to return 'people' array vs 'profileUsers' from friends/search
         const searchUrl = `https://xbl.io/api/v2/search/${encodeURIComponent(gamertag)}`;
+        let searchResponse;
 
-        let searchResponse = await fetch(CORS_PROXY + encodeURIComponent(searchUrl), {
-            headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
-            referrerPolicy: 'no-referrer'
-        });
+        try {
+            searchResponse = await fetchWithFallback(searchUrl, apiKey);
+        } catch (e) {
+            log(`Fallo búsqueda principal: ${e.message}`);
+        }
 
-        // Fallback to friends/search if general search fails or is empty?
-        // Let's stick to valid response check first.
-        if (!searchResponse.ok) {
-            log(`Error Search Legacy: ${searchResponse.status}`);
-            // Try friends path as backup
+        // Fallback to friends/search if failed
+        if (!searchResponse || !searchResponse.ok) {
+            log(`Probando método alternativo (Friends Search)...`);
             const friendsSearchUrl = `https://xbl.io/api/v2/friends/search?gt=${encodeURIComponent(gamertag)}`;
-            searchResponse = await fetch(CORS_PROXY + encodeURIComponent(friendsSearchUrl), {
-                headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
-                referrerPolicy: 'no-referrer'
-            });
+            searchResponse = await fetchWithFallback(friendsSearchUrl, apiKey);
 
             if (!searchResponse.ok) {
-                throw new Error('Error al buscar usuario (Status ' + searchResponse.status + ')');
+                // Check if it was 401
+                if (searchResponse.status === 401) throw new Error('API Key rechazada (401).');
+                throw new Error('No se pudo encontrar el usuario. (Status ' + searchResponse.status + ')');
             }
         }
 
@@ -516,39 +557,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         log(`XUID encontrado: ${xuid}`);
 
-        // Use CORS proxy for media calls too
-        const PROXY_URL = CORS_PROXY;
-
-        // Helper to fetch media
+        // Helper to fetch media using the fallback system
         const fetchMedia = async (endpoint, type) => {
             try {
                 // Try specific user endpoint
                 const targetUrl = `https://xbl.io/api/v2/dvr/${endpoint}/${xuid}`;
-                log(`Intentando obtener ${type} de: ${targetUrl}`);
+                log(`Buscando ${type}...`);
 
-                let response = await fetch(PROXY_URL + encodeURIComponent(targetUrl), {
-                    headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
-                    referrerPolicy: 'no-referrer'
-                });
-
+                let response = await fetchWithFallback(targetUrl, apiKey);
                 let data = null;
+
                 if (response.ok) {
                     data = await response.json();
-                    log(`Exito directo (Status ${response.status}). Keys: ${Object.keys(data).join(', ')}`);
                 } else {
-                    log(`Fallo directo (Status ${response.status}). Probando fallback...`);
-                    // Fallback
+                    // Fallback to general endpoint
                     const fallbackUrl = `https://xbl.io/api/v2/dvr/${endpoint}`;
-                    response = await fetch(PROXY_URL + encodeURIComponent(fallbackUrl), {
-                        headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
-                        referrerPolicy: 'no-referrer'
-                    });
-                    if (response.ok) {
-                        data = await response.json();
-                        log(`Exito fallback (Status ${response.status}). Keys: ${Object.keys(data).join(', ')}`);
-                    } else {
-                        log(`Fallo fallback (Status ${response.status})`);
-                    }
+                    response = await fetchWithFallback(fallbackUrl, apiKey);
+                    if (response.ok) data = await response.json();
                 }
 
                 if (!data) return [];
@@ -556,30 +581,15 @@ document.addEventListener('DOMContentLoaded', () => {
                 // PATCH: Include 'values' key in data access
                 const items = data.gameClips || data.game_clips || data.screenshots || data.values || [];
 
-                log(`Items crudos encontrados: ${items.length}`);
-
-                // If items are found, filter them
+                // Filter by XUID
                 const filtered = items.filter(i => {
                     const itemXuid = i.xuid || i.ownerXuid;
                     if (itemXuid) return itemXuid == xuid;
                     return false;
                 });
 
-                log(`Coincidencias con XUID (${xuid}): ${filtered.length}. Total items: ${items.length}`);
-
-                if (items.length > 0 && filtered.length === 0) {
-                    // Check if the first item has an ID at all, for debugging
-                    const firstItemXuid = items[0].xuid || items[0].ownerXuid || 'N/A';
-                    log(`ADVERTENCIA: No hay coincidencia. Buscado: ${xuid}, Encontrado en item[0]: ${firstItemXuid}`);
-                }
-
-                // STRICT: Only return items that match the target XUID. 
-                // Do NOT return 'items' as fallback, as that shows the API Key owner's clips instead of the searched user's.
-                // UNLESS the array is empty and we want to allow at least *trying* to show something if the logic fails? 
-                // No, user specifically requested not to show wrong clips. 
-                const finalItems = filtered;
-
-                return finalItems.map(item => {
+                log(`${type}: Encontrados ${filtered.length} (de ${items.length} totales)`);
+                return filtered.map(item => {
                     let thumbnail = '';
                     let videoUri = '';
                     let title = item.titleName || 'Sin título';
@@ -587,30 +597,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     let views = item.viewCount || item.views || 0;
                     let date = item.uploadDate || item.dateRecorded || item.dateTaken || new Date().toISOString();
 
-                    // Schema A: contentLocators (New/Observed Schema)
+                    // Schema A
                     if (item.contentLocators) {
                         const download = item.contentLocators.find(l => l.locatorType === 'Download');
                         const thumbLarge = item.contentLocators.find(l => l.locatorType === 'Thumbnail_Large');
                         const thumbSmall = item.contentLocators.find(l => l.locatorType === 'Thumbnail_Small');
-
                         if (download) videoUri = download.uri;
                         if (thumbLarge) thumbnail = thumbLarge.uri;
                         else if (thumbSmall) thumbnail = thumbSmall.uri;
                     }
-                    // Schema B: gameClipUris / thumbnails (Old/Standard Schema)
+                    // Schema B
                     else {
                         thumbnail = (item.thumbnails && item.thumbnails[0]) ? item.thumbnails[0].uri : '';
-                        if (type === 'Clip' && item.gameClipUris && item.gameClipUris[0]) {
-                            videoUri = item.gameClipUris[0].uri;
-                        } else if (type === 'Screenshot' && item.screenshotUris && item.screenshotUris[0]) {
-                            videoUri = item.screenshotUris[0].uri;
-                        }
+                        if (type === 'Clip' && item.gameClipUris && item.gameClipUris[0]) videoUri = item.gameClipUris[0].uri;
+                        else if (type === 'Screenshot' && item.screenshotUris && item.screenshotUris[0]) videoUri = item.screenshotUris[0].uri;
                     }
 
-                    // Fallback for videoUri if it's a screenshot (use thumbnail as full view if needed)
-                    if (type === 'Screenshot' && !videoUri && thumbnail) {
-                        videoUri = thumbnail;
-                    }
+                    if (type === 'Screenshot' && !videoUri && thumbnail) videoUri = thumbnail;
 
                     return {
                         id: item.gameClipId || item.screenshotId || item.contentId || Math.random(),
@@ -626,7 +629,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
             } catch (e) {
-                log(`Excepción al obtener ${type}: ${e.message}`);
+                log(`Error obteniendo ${type}: ${e.message}`);
                 return [];
             }
         };
