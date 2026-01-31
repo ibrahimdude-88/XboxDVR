@@ -478,7 +478,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchUrl = `https://xbl.io/api/v2/search/${encodeURIComponent(gamertag)}`;
 
         let searchResponse = await fetch(CORS_PROXY + encodeURIComponent(searchUrl), {
-            headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' }
+            headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
+            referrerPolicy: 'no-referrer'
         });
 
         // Fallback to friends/search if general search fails or is empty?
@@ -488,7 +489,8 @@ document.addEventListener('DOMContentLoaded', () => {
             // Try friends path as backup
             const friendsSearchUrl = `https://xbl.io/api/v2/friends/search?gt=${encodeURIComponent(gamertag)}`;
             searchResponse = await fetch(CORS_PROXY + encodeURIComponent(friendsSearchUrl), {
-                headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' }
+                headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
+                referrerPolicy: 'no-referrer'
             });
 
             if (!searchResponse.ok) {
@@ -525,7 +527,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 log(`Intentando obtener ${type} de: ${targetUrl}`);
 
                 let response = await fetch(PROXY_URL + encodeURIComponent(targetUrl), {
-                    headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' }
+                    headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
+                    referrerPolicy: 'no-referrer'
                 });
 
                 let data = null;
@@ -537,7 +540,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Fallback
                     const fallbackUrl = `https://xbl.io/api/v2/dvr/${endpoint}`;
                     response = await fetch(PROXY_URL + encodeURIComponent(fallbackUrl), {
-                        headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' }
+                        headers: { 'X-Authorization': apiKey, 'Accept': 'application/json' },
+                        referrerPolicy: 'no-referrer'
                     });
                     if (response.ok) {
                         data = await response.json();
